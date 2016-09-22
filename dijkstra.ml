@@ -64,12 +64,6 @@ let initializeMap grid origin fixedValue originValue predicate =
             gridWithIndices
         )
 
-let rec printPath path =
-    match path with
-    | []            -> ()
-    | point :: []   -> print_string (Point.hash point)
-    | point :: rest -> print_string ((Point.hash point) ^ " -> "); printPath rest
-
 (* Dijkstra *)
 
 let getInitialDistances grid origin =
@@ -94,7 +88,9 @@ let getInitialGridState grid origin =
     origin
     false
     false
-    (fun cell -> cell == Empty)
+    (fun cell -> true)
+
+let getInitialCellIsOnPath = getInitialGridState
 
 let getNeighbors grid gridState (x, y) =
     List.filter
@@ -176,10 +172,48 @@ let dijkstra grid origin target =
                 dijkstraIteration initialDistances initialPath initialGridState 0
 ;;
 
+(* Printing *)
+
+let rec printPath path =
+    match path with
+    | []            -> ()
+    | point :: []   -> print_string (Point.hash point)
+    | point :: rest -> print_string ((Point.hash point) ^ " -> "); printPath rest
+
+let printPathOnGrid grid origin target path =
+    let cellIsInPath =
+        List.fold_left
+        (fun cellIsInPath point -> PointMap.add point true cellIsInPath)
+        (getInitialCellIsOnPath grid origin)
+        path
+    in
+        List.iter
+        (
+            fun (y, row) ->
+                List.iter
+                (
+                    fun (x, cell) ->
+                        if PointMap.find (x, y) cellIsInPath then
+                            print_string "\027[42m"
+                        else
+                            print_string "\027[0m"
+                        ;
+                        match cell with
+                        | _ when compare (x, y) origin == 0 -> print_string "1"
+                        | _ when compare (x, y) target == 0 -> print_string "X"
+                        | Empty                             -> print_string "_"
+                        | _                                 -> print_string "#"
+                )
+                (zipArrayWithIndices row)
+                ;
+                print_endline ""
+        )
+        (zipArrayWithIndices grid)
+
+(* Entry point *)
+
 let () =
-    printPath
-    (
-        dijkstra
+    let grid =
         [|
             [|Empty; Empty; Empty; Empty; Empty|];
             [|Empty; Full;  Full;  Full;  Empty|];
@@ -188,7 +222,11 @@ let () =
             [|Empty; Empty; Empty; Full;  Empty|];
             [|Empty; Empty; Empty; Empty; Empty|];
         |]
-        (2, 2)
-        (4, 0)
-    );
-    print_endline ""
+    in
+        let origin = (2, 2) in
+        let target = (4, 0) in
+            let path = dijkstra grid origin target in
+                printPath path;
+                print_endline "";
+                print_endline "";
+                printPathOnGrid grid origin target path
