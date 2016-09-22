@@ -59,6 +59,8 @@ let getInitialDistances grid origin =
                     gridWithIndices
             )
 
+let neighbors grid point = 3
+
 let dijkstra grid origin target =
     let gridState = Array.map
         (fun row -> Array.map (fun kind -> { visited = false; cellKind = kind }) row)
