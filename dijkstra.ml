@@ -7,7 +7,7 @@ module Point = struct
 
     type t = point
 
-    let hash    (x, y)        = "(" ^ (string_of_int x) ^ "_" ^ (string_of_int y) ^ ")"
+    let hash    (x, y)        = "(" ^ (string_of_int x) ^ ", " ^ (string_of_int y) ^ ")"
     let compare pointA pointB = compare (hash pointA) (hash pointB)
 end
 
@@ -64,7 +64,11 @@ let initializeMap grid origin fixedValue originValue predicate =
             gridWithIndices
         )
 
-let printPath path = List.iter print_string (List.map Point.hash path)
+let rec printPath path =
+    match path with
+    | []            -> ()
+    | point :: []   -> print_string (Point.hash point)
+    | point :: rest -> print_string ((Point.hash point) ^ " -> "); printPath rest
 
 (* Dijkstra *)
 
@@ -92,9 +96,9 @@ let getInitialGridState grid origin =
     false
     (fun cell -> cell == Empty)
 
-let getNeighbors grid (x, y) =
+let getNeighbors grid gridState (x, y) =
     List.filter
-    (fun neighbor -> getGridElement grid neighbor == Empty)
+    (fun neighbor -> getGridElement grid neighbor == Empty && not (PointMap.find neighbor gridState))
     (
         List.map
         (fun (i, j) -> (x + i, y + j))
@@ -108,8 +112,8 @@ let findNearestPoint distances gridState =
             fun (point1, distance1) (point2, distance2) ->
                 match distance1, distance2 with
                 | None, None                     -> 0
-                | Some _, None                   -> 1
-                | None, Some _                   -> -1
+                | None, Some _                   -> 1
+                | Some _, None                   -> -1
                 | Some distance1, Some distance2 -> compare distance1 distance2
         )
         (
@@ -128,9 +132,8 @@ let dijkstra grid origin target =
     let initialPath      = getInitialPath grid origin in
     let rec unwindPath node pathMap path =
         match PointMap.find node pathMap with
-        | Some origin when origin == node -> path
-        | None                            -> path
-        | Some previous                   -> unwindPath previous pathMap (node :: path)
+        | None          -> origin :: path
+        | Some previous -> unwindPath previous pathMap (node :: path)
     in
         let nbNodes = PointMap.cardinal initialGridState in
             let rec dijkstraIteration distances path gridState nbVisitedNodes =
@@ -138,28 +141,36 @@ let dijkstra grid origin target =
                     unwindPath target path []
                 else
                     let node = findNearestPoint distances gridState in
-                        let neighbors = getNeighbors grid node in
-                            let (newDistances, newPath) =
-                                List.fold_left
-                                (
-                                    fun (distances, path) point ->
-                                        let currentDistance  = PointMap.find point distances in
-                                        let thisPathDistance =
-                                            match PointMap.find node distances with
-                                            | Some distance -> distance + 1
-                                            | None          -> 1
-                                        in
-                                            match currentDistance with
-                                            | Some distance when distance <= thisPathDistance -> (
-                                                PointMap.add point (Some thisPathDistance) distances,
-                                                PointMap.add point (Some node) path
-                                            )
-                                            | _ -> (distances, path)
-                                )
-                                (distances, path)
-                                neighbors
-                            in
-                                let newGridState = PointMap.add node true gridState in
+                        let newGridState = PointMap.add node true gridState in
+                        let currentNodeDistance = PointMap.find node distances in
+                            let neighbors = getNeighbors grid newGridState node in
+                                let (newDistances, newPath) =
+                                    List.fold_left
+                                    (
+                                        fun (distances, path) point ->
+                                            let currentDistance  = PointMap.find point distances in
+                                            let thisPathDistance =
+                                                1
+                                                + (
+                                                    match PointMap.find node distances with
+                                                    | Some distance -> distance
+                                                    | None          -> (
+                                                        match currentNodeDistance with
+                                                        | Some distance -> distance
+                                                        | None          -> 0 (* Cannot happen *)
+                                                    )
+                                                )
+                                            in
+                                                match currentDistance with
+                                                | Some distance when distance < thisPathDistance -> (distances, path)
+                                                | _                                              -> (
+                                                    PointMap.add point (Some thisPathDistance) distances,
+                                                    PointMap.add point (Some node) path
+                                                )
+                                    )
+                                    (distances, path)
+                                    neighbors
+                                in
                                     dijkstraIteration newDistances newPath newGridState (nbVisitedNodes + 1)
             in
                 dijkstraIteration initialDistances initialPath initialGridState 0
@@ -178,5 +189,6 @@ let () =
             [|Empty; Empty; Empty; Empty; Empty|];
         |]
         (2, 2)
-        (0, 4)
-    )
+        (4, 0)
+    );
+    print_endline ""
