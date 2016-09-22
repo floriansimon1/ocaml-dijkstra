@@ -153,7 +153,7 @@ let dijkstra grid origin target =
                                                     | None          -> (
                                                         match currentNodeDistance with
                                                         | Some distance -> distance
-                                                        | None          -> 0 (* Cannot happen *)
+                                                        | None          -> failwith "noPath"
                                                     )
                                                 )
                                             in
@@ -169,23 +169,31 @@ let dijkstra grid origin target =
                                 in
                                     dijkstraIteration newDistances newPath newGridState (nbVisitedNodes + 1)
             in
-                dijkstraIteration initialDistances initialPath initialGridState 0
+                try
+                    Some (dijkstraIteration initialDistances initialPath initialGridState 0)
+                with error -> None
 ;;
 
 (* Printing *)
 
 let rec printPath path =
     match path with
-    | []            -> ()
-    | point :: []   -> print_string (Point.hash point)
-    | point :: rest -> print_string ((Point.hash point) ^ " -> "); printPath rest
+    | Some []              -> ()
+    | Some (point :: [])   -> print_string (Point.hash point)
+    | None                 -> print_string "No path from origin to destination"
+    | Some (point :: rest) -> print_string ((Point.hash point) ^ " -> "); printPath (Some rest)
 
 let printPathOnGrid grid origin target path =
     let cellIsInPath =
-        List.fold_left
-        (fun cellIsInPath point -> PointMap.add point true cellIsInPath)
-        (getInitialCellIsOnPath grid origin)
-        path
+        let pathOrDefault =
+            match path with
+            | None      -> []
+            | Some path -> path
+        in
+            List.fold_left
+            (fun cellIsInPath point -> PointMap.add point true cellIsInPath)
+            (getInitialCellIsOnPath grid origin)
+            pathOrDefault
     in
         List.iter
         (
